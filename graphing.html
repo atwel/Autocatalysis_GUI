@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link rel="stylesheet" type="text/css" href="ac_style.css">
+<body>
+<button id='play' type="button">Layout</button>
+<button id='stop'   type="button">Fixed</button>
+<center><br>
+<div id="main">
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script>
+
+var tooltip = d3.select("body")
+    .append("div")
+    .style("position", "absolute")
+    .style("z-index", "10")
+    .style("visibility", "hidden")
+    .style("color", "white")
+    .style("width","auto")
+    .style("padding", "8px")
+    .style("background-color", "rgba(0, 0, 0, 0.75)")
+    .style("border-radius", "6px")
+    .style("font", "12px sans-serif")
+    .text("tooltip");
+     
+var width = window.innerHeight,
+    height = window.innerHeight;
+
+var svg = d3.select("div").append("svg")
+    .attr("width", width*.89)
+    .attr("height",  height*.89);
+
+var link = svg.selectAll(".link"),
+    node = svg.selectAll(".node");
+
+var force = d3.layout.force()
+    .nodes(nodes)
+    .links(links)
+    .size([width, height])
+    .linkDistance(100)
+    .charge(-1000)
+    .gravity(.18)
+    .on("tick", tick)
+    .start();
+
+var drag = force.drag()
+    .on("dragstart", dragstart); 
+
+// Pre-type markers, as they don't inherit styles.
+svg.append("defs").selectAll("marker")
+    .data([-1])
+  .enter().append("marker")
+    .attr("id", function(d) { return d; })
+    .attr("viewBox", "0 -5 10 10")
+    .attr("refX", 20)
+    .attr("refY", -1)
+    .attr("markerWidth", 3)
+    .attr("markerHeight", 3)
+    .attr("orient", "auto")
+    .attr("fill", "#666666")
+    .attr("name", function(d) {return d.name;})
+  .append("path")
+    .attr("d", "M0,-5L10,0L0,5");
+
+var path = svg.append("g").selectAll("path")
+    .data(force.links())
+  .enter().append("path")
+    .attr("class", function(d) { return "link"; })
+    .attr("marker-end", function(d) { return "url(#" + d.current + ")"; })
+    .attr("name", function(d) {return d.name;})
+    
+    .on("click", function(d){var next = d.current+1;
+            var cycle_list = d.cycles; 
+            if (next === cycle_list.length)
+                {d.current = -1;
+                    d3.selectAll("path").style("stroke","#666666");
+                    d3.selectAll("path").style("stroke-width",3.5);
+                }
+            else
+                {d.current += 1;
+                 var cycle = cycle_list[next];
+                 var edges = cycles[cycle];
+                 d3.selectAll("path").each(function(){
+                        d3.select(this).style("stroke","#666666");
+                        d3.select(this).style("stroke-width",3.5);
+                        
+                        var nam = parseInt(d3.select(this).attr("name"));
+                        if(edges.indexOf(nam) != -1) {
+                            d3.select(this).style("stroke","#03f62a");
+                            d3.select(this).style("stroke-width",5);
+                                };});
+                }
+    })
+    .on("mouseover", function(d) {
+              tooltip.html(d.type);
+              tooltip.style("width", "auto");
+              tooltip.style("visibility", "visible");
+      })
+      .on("mousemove", function() {
+          return tooltip.style("top", (d3.event.pageY-10)+"px").style("left",(d3.event.pageX+10)+"px");
+      })
+      .on("mouseout", function(){return tooltip.style("visibility", "hidden");});
+
+var circle = svg.append("g").selectAll("circle")
+    .data(force.nodes())
+  .enter().append("circle")
+    .attr("r", 15)
+    .call(drag)
+    .on("dblclick",function(d) {d.fixed = false;})
+    .on("mouseover", function(d) {
+              tooltip.html("ID: "+d.name+ "  "+d.rules_text);
+              tooltip.style("width", "auto");
+              tooltip.style("visibility", "visible");
+      })
+      .on("mousemove", function() {
+          return tooltip.style("top", (d3.event.pageY-10)+"px").style("left",(d3.event.pageX+10)+"px");
+      })
+      .on("mouseout", function(){return tooltip.style("visibility", "hidden");});
+
+
+// Use elliptical arc path segments to doubly-encode directionality.
+function tick() {
+  path.attr("d", linkArc);
+  circle.attr("transform", transform);
+}
+
+function tick2() {
+  circle.attr("transform", transform2);
+  path.attr("d", linkArc2);
+}
+
+function linkArc(d) {
+  var inc = .25 / d.count,
+      dx = d.target.x - d.source.x,
+      dy = d.target.y - d.source.y,
+      dr = Math.sqrt(dx * dx + dy * dy);
+  return "M" + d.source.x + "," + d.source.y + "A" + dr*(.5+(inc*d.number)) + "," + dr*(.5+(inc*d.number)) + " 0 0,1 " + d.target.x + "," + d.target.y;
+}
+
+function linkArc2(d) {
+  var inc = .25 / d.count,
+      dx = (d.target.location_x - d.source.location_x)*height/12,
+      dy = (d.target.location_y - d.source.location_y)*height/12,
+      dr = Math.sqrt(dx * dx + dy * dy);
+  return "M" + (d.source.location_x )*height/12 + "," + (d.source.location_y)*height/12 + "A" + dr*(.5+(inc*d.number)) + "," + dr*(.5+(inc*d.number)) + " 0 0,1 " + (d.target.location_x )*height/12 + "," + (d.target.location_y)*height/12;
+}
+
+
+function transform(d) {
+  return "translate(" + d.x + "," + d.y + ")";
+}
+
+function transform2(d) {
+  return "translate(" + (d.location_x)*height/12 + "," + (d.location_y)*height/12 + ")";
+}
+
+function dragstart(d) {
+  d.fixed = true;
+  d3.select(this).classed("fixed", true);
+}
+
+function dragstop(d) {
+  d.fixed = false;
+  d3.select(this).classed("fixed", false);
+}
+
+d3.select('#stop').on('click', function() {
+    force.stop();
+    tick2();
+  });
+
+d3.select('#play').on('click', function() {
+    // Get the animation rolling
+    circle.attr("dragstop",dragstop);
+    force.start();
+
+});
+</script></div></center>
+</body>
+</html>
